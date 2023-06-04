@@ -4,7 +4,7 @@ mod token;
 mod lexer;
 
 fn main() {
-    let text = String::from("12 + 34 / (6 + 7);");
+    let text = String::from("if true");
 
     let mut lexer = lexer::Lexer::new(text);
     let tokens =  lexer.analyze();
