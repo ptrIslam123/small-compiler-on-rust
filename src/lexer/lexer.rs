@@ -1,4 +1,5 @@
 pub mod front {
+    use std::collections::HashMap;
     use crate::token::Token;
     use crate::token::TokenType;
 
@@ -58,18 +59,14 @@ pub mod front {
                         tokens.push(token);
                         continue;
                     }
-                    None => {/* It is ok! */}
-                }
-
-                match self.processOperator(&symbol) {
-                    Some(token) => {
-                        tokens.push(token); 
-                        self.pos += 1;
-                        continue;
+                    None => {
+                        /* It is ok! */
                     }
-                    None => {/* It is ok! */},
                 }
 
+                if self.processOperator(&mut tokens) {
+                    continue;
+                }
                 
                 if symbol.is_numeric() {
                     tokens.push(self.processNumeric());
@@ -90,26 +87,124 @@ pub mod front {
         }
 
         fn processKeyWord(&mut self) -> Option<Token> {
+            // This code is wrong
+            let keyWords = HashMap::from([
+                (String::from("def"), TokenType::Define),
+                (String::from("var"), TokenType::Variable),
+                (String::from("func"), TokenType::Function),
+                (String::from("while"), TokenType::While),
+                (String::from("if"), TokenType::If),
+                (String::from("else"), TokenType::Else),
+                (String::from("elseif"), TokenType::ElseIf),
+                (String::from("true"), TokenType::Bool),
+                (String::from("false"), TokenType::Bool),
+            ]);
+
+            let textSize = self.text.len();
+            let mut buffer = String::new();
+            let mut pos = 0;
+            let firstSymbol = self.text.chars().nth(self.pos).unwrap();
+
+            for (keyWord, _) in &keyWords {
+                if firstSymbol == keyWord.chars().nth(0).unwrap() {
+                    buffer.push(firstSymbol);
+                    pos += 1;
+
+                    while  self.pos + pos <= textSize {
+                        if pos >= keyWord.len() {
+                            return match keyWords.get(&buffer) {
+                                Some(keyTokenType) => {
+                                    self.pos += pos;
+                                    Some(Token::new(keyTokenType.clone(), buffer))
+                                },
+                                _ => None
+                            }
+                        }
+
+                        let symbol = self.text.chars().nth(self.pos + pos).unwrap();
+                        if symbol == keyWord.chars().nth(pos).unwrap() {
+                            buffer.push(symbol);
+                            pos += 1;
+                            continue;
+                        }
+
+                        pos = 0;
+                        buffer.clear();
+                        break;
+                    }      
+                }
+            }
+
             None
         }
 
-        fn processOperator(&self, symbol: &char) -> Option<Token> {
-            use std::collections::HashMap;
+        fn processOperator(&mut self, tokens: &mut Vec<Token>) -> bool {
             let optTable = HashMap::from([
-                ('+', Token::new(TokenType::Plus, String::from(*symbol))),
-                ('-', Token::new(TokenType::Minus, String::from(*symbol))),
-                ('*', Token::new(TokenType::Multiply, String::from(*symbol))),
-                ('/', Token::new(TokenType::Divide, String::from(*symbol))),
-                ('(', Token::new(TokenType::LeftBracket, String::from(*symbol))),
-                (')', Token::new(TokenType::RightBracket, String::from(*symbol))),
-                ('=', Token::new(TokenType::Eq, String::from(*symbol))),
-                (',', Token::new(TokenType::Comma, String::from(*symbol))),
-                (';', Token::new(TokenType::Semicolon, String::from(*symbol))),
+                ('+', Token::new(TokenType::Plus, String::from("+"))),
+                ('-', Token::new(TokenType::Minus, String::from("-"))),
+                ('*', Token::new(TokenType::Multiply, String::from("*"))),
+                ('/', Token::new(TokenType::Divide, String::from("/"))),
+                ('(', Token::new(TokenType::LeftBracket, String::from("("))),
+                (')', Token::new(TokenType::RightBracket, String::from(")"))),
+                ('{', Token::new(TokenType::LeftBrace, String::from("{"))),
+                ('}', Token::new(TokenType::RightBrace, String::from("}"))),
+                ('=', Token::new(TokenType::Assign, String::from("="))),
+                ('<', Token::new(TokenType::Less, String::from("<"))),
+                ('>', Token::new(TokenType::More, String::from(">"))),
+                ('&', Token::new(TokenType::And, String::from("&"))),
+                ('|', Token::new(TokenType::More, String::from("|"))),
+                ('!', Token::new(TokenType::NotEq, String::from("!"))),
+                (',', Token::new(TokenType::Comma, String::from(","))),
+                (';', Token::new(TokenType::Semicolon, String::from(";"))),
             ]);
+            
+            let textSize = self.text.len();
+            let mut tokenBuffer = Vec::new();
+            let mut i = 0;
+            while self.pos < textSize && i < 2 {
+                let symbol = self.text.chars().nth(self.pos).unwrap();
+                match optTable.get(&symbol) {
+                    Some(token) => {
+                        tokenBuffer.push(token);
+                        self.pos += 1;
+                        i += 1;
+                        continue;
+                    },
+                    None => {
+                        break;
+                    }
+                }
+            }
 
-            match optTable.get(symbol) {
-                Some(&ref token) => Some(token.clone()),
-                None => None,
+            match tokenBuffer.len() {
+                1 => {
+                    tokens.push(tokenBuffer[0].clone());
+                    true
+                }
+                2 => {
+                    let first = tokenBuffer[0];
+                    let second = tokenBuffer[1];
+                    if first == optTable.get(&'<').unwrap() && second == optTable.get(&'=').unwrap() {
+                        tokens.push(Token::new(TokenType::LessOrEq, String::from("<=")));
+                    } else if first == optTable.get(&'>').unwrap() && second == optTable.get(&'=').unwrap() {
+                        tokens.push(Token::new(TokenType::MoreOrEq, String::from(">=")));
+                    } else if first == optTable.get(&'=').unwrap() && second == optTable.get(&'=').unwrap() {
+                        tokens.push(Token::new(TokenType::Eq, String::from("==")));
+                    } else if first == optTable.get(&'!').unwrap() && second == optTable.get(&'=').unwrap() {
+                        tokens.push(Token::new(TokenType::NotEq, String::from("!=")));
+                    } else if first == optTable.get(&'&').unwrap() && second == optTable.get(&'&').unwrap() {
+                        tokens.push(Token::new(TokenType::And, String::from("&&")));
+                    } else if first == optTable.get(&'|').unwrap() && second == optTable.get(&'|').unwrap() {
+                        tokens.push(Token::new(TokenType::Or, String::from("||")));
+                    } else {
+                        for token in tokenBuffer {
+                            tokens.push(token.clone());
+                        }
+                    }
+                    
+                    return true;
+                },
+                _ => false
             }
         }
 
