@@ -1,7 +1,5 @@
 pub mod front {
     use std::collections::HashMap;
-
-    use crate::token;
     use crate::token::Token;
     use crate::token::TokenType;
 
@@ -61,7 +59,9 @@ pub mod front {
                         tokens.push(token);
                         continue;
                     }
-                    None => {/* It is ok! */}
+                    None => {
+                        /* It is ok! */
+                    }
                 }
 
                 if self.processOperator(&mut tokens) {
@@ -88,7 +88,6 @@ pub mod front {
 
         fn processKeyWord(&mut self) -> Option<Token> {
             // This code is wrong
-            use std::collections::HashMap;
             let keyWords = HashMap::from([
                 (String::from("def"), TokenType::Define),
                 (String::from("var"), TokenType::Variable),
@@ -104,44 +103,42 @@ pub mod front {
             let textSize = self.text.len();
             let mut buffer = String::new();
             let mut pos = 0;
-            let mut oldPos = 0;
-            let mut i = self.pos;
+            let firstSymbol = self.text.chars().nth(self.pos).unwrap();
 
-            while i < textSize {
-                let symbol = self.text.chars().nth(i).unwrap();
+            for (keyWord, _) in &keyWords {
+                if firstSymbol == keyWord.chars().nth(0).unwrap() {
+                    buffer.push(firstSymbol);
+                    pos += 1;
 
-                for (keyWord, _) in keyWords.iter() {
-                    if pos >= keyWord.len() {
-                        continue;
-                    }
+                    while  self.pos + pos <= textSize {
+                        if pos >= keyWord.len() {
+                            return match keyWords.get(&buffer) {
+                                Some(keyTokenType) => {
+                                    self.pos += pos;
+                                    Some(Token::new(keyTokenType.clone(), buffer))
+                                },
+                                _ => None
+                            }
+                        }
 
-                    if keyWord.chars().nth(pos).unwrap() == symbol {
-                        buffer.push(symbol);
-                        oldPos = pos;
-                        pos += 1;
+                        let symbol = self.text.chars().nth(self.pos + pos).unwrap();
+                        if symbol == keyWord.chars().nth(pos).unwrap() {
+                            buffer.push(symbol);
+                            pos += 1;
+                            continue;
+                        }
+
+                        pos = 0;
+                        buffer.clear();
                         break;
-                    }
+                    }      
                 }
-
-                if oldPos == pos {
-                    break;
-                }
-
-                i += 1;
-            } 
-            
-            println!("keybuff={}", buffer);
-            match keyWords.get(&buffer) {
-                Some(keyTokenType) => {
-                    self.pos += buffer.len();
-                    Some(Token::new(keyTokenType.clone(), buffer))            
-                },
-                None => None
             }
+
+            None
         }
 
         fn processOperator(&mut self, tokens: &mut Vec<Token>) -> bool {
-            use std::collections::HashMap;
             let optTable = HashMap::from([
                 ('+', Token::new(TokenType::Plus, String::from("+"))),
                 ('-', Token::new(TokenType::Minus, String::from("-"))),
